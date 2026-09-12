@@ -1,0 +1,20 @@
+{
+    "schemaVersion": 1,
+    "title": "メール入力のサインイン画面",
+    "name": "Sign in / 画像からの再実装",
+    "kind": "screen",
+    "category": "フォーム",
+    "tags": ["スクショ", "ログイン", "レスポンシブ"],
+    "description": "画像を左、メール入力欄を右に配置する画面です。狭い幅では入力欄だけを表示します。",
+    "note": "既存モックのスクリーンショットを入力素材として別の実装にしました。実際の認証・メール送信は行いません。",
+    "interaction": "メール形式を検証し、送信操作後に確認メッセージを表示します。",
+    "color": "#e6ebe4",
+    "entry": "SignIn.tsx",
+    "files": ["SignIn.tsx", "signin.css", "reference.png"],
+    "dependencies": { "react": "19.3.0", "react-dom": "19.3.0" },
+    "source": {
+        "type": "screenshot",
+        "target": "このリポジトリの既存モックUI-004のスクリーンショット全体。2列構成・色・入力操作を再現し、文言は簡潔に変更。外部サイトの画像ではありません。",
+        "reference": "reference.png"
+    }
+}

@@ -91,6 +91,9 @@ svg {
 .skip-link:focus {
     top: 15px;
 }
+.skip-link:not(:focus) {
+    clip-path: inset(50%);
+}
 .site-header {
     height: 88px;
     display: flex;
@@ -741,6 +744,7 @@ svg {
 }
 .copy-id {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
@@ -761,6 +765,7 @@ svg {
     gap: 5px;
     color: #65745c;
     font-size: 9px;
+    white-space: nowrap;
 }
 .reuse-section dl {
     display: grid;
@@ -1166,4 +1171,32 @@ svg {
         animation: none !important;
         scroll-behavior: auto !important;
     }
+}
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    margin: 32px 0;
+}
+.detail-title-meta code,
+.copy-id code {
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+.detail-aside dd {
+    overflow-wrap: anywhere;
+}
+.detail-title-meta {
+    flex-wrap: wrap;
+}
+.detail-title-meta > span {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+.code-toolbar {
+    flex-wrap: wrap;
+}
+.code-toolbar > button {
+    white-space: nowrap;
 }

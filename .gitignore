@@ -3,3 +3,5 @@ dist/
 .DS_Store
 .playwright-cli/
 artifacts/
+collection-work/
+.formshelf/

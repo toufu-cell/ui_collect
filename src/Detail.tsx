@@ -1,48 +1,112 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Piece } from './catalog';
+import type { Piece } from '../shared/types';
+import { api, fileBytes } from './api';
 import { Icon } from './Icon';
 import { Modal } from './Modal';
 
 export function Detail({ piece, onClose }: { piece: Piece; onClose: () => void }) {
     const [tab, setTab] = useState<'preview' | 'reference' | 'code'>('preview');
     const [mobile, setMobile] = useState(false);
-    const [files, setFiles] = useState<{ name: string; text: string }[]>([]);
+    const files = piece.files.filter((file) => !file.path.startsWith('generated/'));
+    const [source, setSource] = useState('');
     const [fileIndex, setFileIndex] = useState(0);
-    const [sourceError, setSourceError] = useState(false);
+    const [sourceError, setSourceError] = useState('');
+    const [preview, setPreview] = useState<{ html: string; token: string } | null>(null);
+    const [previewError, setPreviewError] = useState('');
+    const [ready, setReady] = useState(false);
     const [copyState, setCopyState] = useState('');
     const frameRef = useRef<HTMLIFrameElement>(null);
 
     useEffect(() => {
         const receive = (event: MessageEvent) => {
             if (
-                event.origin === window.location.origin &&
+                event.origin === 'null' &&
                 event.source === frameRef.current?.contentWindow &&
-                event.data?.type === 'ui-collect:close-preview'
-            )
-                onClose();
+                event.data?.token === preview?.token
+            ) {
+                if (event.data.type === 'formshelf:close') onClose();
+                if (event.data.type === 'formshelf:ready') setReady(true);
+                if (event.data.type === 'formshelf:error')
+                    setPreviewError(`描画に失敗しました: ${event.data.message}`);
+            }
         };
         window.addEventListener('message', receive);
         return () => window.removeEventListener('message', receive);
-    }, [onClose]);
+    }, [onClose, preview]);
 
     useEffect(() => {
-        if (tab !== 'code') return;
-        let active = true;
-        Promise.all([piece.loadSource(), import('./samples/samples.css?raw')])
-            .then(([source, css]) => {
-                if (active)
-                    setFiles([
-                        { name: piece.sourceFile, text: source.default },
-                        { name: 'samples.css', text: css.default },
-                    ]);
-            })
-            .catch(() => {
-                if (active) setSourceError(true);
+        setPreview(null);
+        setPreviewError('');
+        setReady(false);
+        if (tab !== 'preview') return;
+        const controller = new AbortController();
+        api<{ html: string; token: string }>(`/api/ui/${piece.id}/preview`, controller.signal)
+            .then(setPreview)
+            .catch((error) => {
+                if (!controller.signal.aborted) setPreviewError(error.message);
             });
-        return () => {
-            active = false;
-        };
+        return () => controller.abort();
     }, [piece, tab]);
+
+    useEffect(() => {
+        if (tab !== 'preview' || ready || previewError) return;
+        const timer = setTimeout(
+            () =>
+                setPreviewError(
+                    'プレビューの起動を確認できませんでした。閉じて開き直してください。',
+                ),
+            30_000,
+        );
+        return () => clearTimeout(timer);
+    }, [tab, ready, previewError]);
+
+    useEffect(() => {
+        setSource('');
+        setSourceError('');
+        if (tab !== 'code') return;
+        const controller = new AbortController();
+        const file = files[fileIndex];
+        if (!/\.(tsx?|jsx?|css|json|md|svg|html)$/.test(file.path)) {
+            setSource('バイナリファイルです。「ダウンロード」から取得できます。');
+            return;
+        }
+        api<{ data: string; nextOffset: number | null }>(
+            `/api/ui/${piece.id}/file?path=${encodeURIComponent(file.path)}`,
+            controller.signal,
+        )
+            .then((result) => {
+                const text = new TextDecoder().decode(
+                    Uint8Array.from(atob(result.data), (c) => c.charCodeAt(0)),
+                );
+                setSource(
+                    text +
+                        (result.nextOffset === null
+                            ? ''
+                            : '\n\n（先頭64KiBを表示。全体はダウンロードできます。）'),
+                );
+            })
+            .catch((error) => {
+                if (!controller.signal.aborted) setSourceError(error.message);
+            });
+        return () => controller.abort();
+    }, [piece, tab, fileIndex]);
+
+    async function download() {
+        try {
+            const file = files[fileIndex];
+            const bytes = await fileBytes(piece.id, file.path);
+            const url = URL.createObjectURL(
+                new Blob([bytes], { type: 'application/octet-stream' }),
+            );
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = file.path.split('/').pop()!;
+            anchor.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch (error) {
+            setSourceError(error instanceof Error ? error.message : '取得できませんでした。');
+        }
+    }
 
     async function copy(text: string, label: string) {
         try {
@@ -113,22 +177,34 @@ export function Detail({ piece, onClose }: { piece: Piece; onClose: () => void }
                     </div>
                     {tab === 'preview' && (
                         <div className={`preview-stage ${mobile ? 'is-mobile' : ''}`}>
-                            <iframe
-                                ref={frameRef}
-                                src={`/?preview=${piece.id}`}
-                                title={`${piece.title}の操作プレビュー`}
-                            />
+                            {previewError ? (
+                                <p role="alert">{previewError}</p>
+                            ) : preview ? (
+                                <iframe
+                                    ref={frameRef}
+                                    srcDoc={preview.html}
+                                    sandbox="allow-scripts allow-forms"
+                                    referrerPolicy="no-referrer"
+                                    title={`${piece.title}の操作プレビュー`}
+                                />
+                            ) : (
+                                <p role="status">プレビューを読み込んでいます…</p>
+                            )}
                         </div>
                     )}
                     {tab === 'reference' && (
                         <div className="reference-stage">
                             <img
-                                src={`/thumbnails/${piece.id}.png`}
-                                alt={`${piece.title}のサンプル参照画像`}
+                                src={`/api/ui/${piece.id}/reference`}
+                                alt={`${piece.title}の参照画像`}
+                                onError={() =>
+                                    setSourceError(
+                                        '参照画像を読み込めません。collection doctorで保存ファイルを確認してください。',
+                                    )
+                                }
                             />
-                            <p>
-                                モック用に制作したUIの初期状態です。外部サイトから収集した画像ではありません。
-                            </p>
+                            <p>{piece.source.target}</p>
+                            {sourceError && <p role="alert">{sourceError}</p>}
                         </div>
                     )}
                     {tab === 'code' && (
@@ -145,24 +221,27 @@ export function Detail({ piece, onClose }: { piece: Piece; onClose: () => void }
                                             onChange={(e) => setFileIndex(Number(e.target.value))}
                                         >
                                             {files.map((file, index) => (
-                                                <option value={index} key={file.name}>
-                                                    {file.name}
+                                                <option value={index} key={file.path}>
+                                                    {file.path}
                                                 </option>
                                             ))}
                                         </select>
                                         <button
                                             className="text-button"
-                                            onClick={() => copy(files[fileIndex].text, 'コード')}
+                                            onClick={() => copy(source, '表示内容')}
                                         >
                                             <Icon name="copy" size={14} />
                                             コピー
                                         </button>
+                                        <button className="text-button" onClick={download}>
+                                            ダウンロード
+                                        </button>
                                     </div>
                                     <pre
                                         tabIndex={0}
-                                        aria-label={`${files[fileIndex].name}のソースコード`}
+                                        aria-label={`${files[fileIndex].path}のソースコード`}
                                     >
-                                        <code>{files[fileIndex].text}</code>
+                                        <code>{sourceError || source || '読み込んでいます…'}</code>
                                     </pre>
                                 </>
                             ) : (
@@ -179,7 +258,7 @@ export function Detail({ piece, onClose }: { piece: Piece; onClose: () => void }
                         {tab === 'preview'
                             ? '実際に操作できます'
                             : tab === 'reference'
-                              ? 'サンプルの参照画像'
+                              ? '登録時の参照画像'
                               : 'プレビューに使用しているソース'}
                         <span>{tab === 'preview' ? 'ESC で閉じる' : 'React + TypeScript'}</span>
                     </div>
@@ -216,11 +295,32 @@ export function Detail({ piece, onClose }: { piece: Piece; onClose: () => void }
                             <dt>実装</dt>
                             <dd>React + TypeScript</dd>
                             <dt>依存</dt>
-                            <dd>React / CSS</dd>
+                            <dd>
+                                {Object.entries(piece.dependencies).map(([name, version]) => (
+                                    <div key={name}>
+                                        {name} {version}
+                                    </div>
+                                ))}
+                            </dd>
                             <dt>参照元</dt>
-                            <dd>オリジナルサンプル</dd>
+                            <dd>
+                                {piece.source.url ? (
+                                    <a
+                                        href={piece.source.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        元ページを開く
+                                    </a>
+                                ) : piece.source.type === 'sample' ? (
+                                    'オリジナルサンプル'
+                                ) : (
+                                    '提供された画像・録画'
+                                )}
+                                <p>{piece.source.target}</p>
+                            </dd>
                         </dl>
-                        <small>MCPでの検索・取得は未接続です。</small>
+                        <small>MCPのsearch_uiで探し、get_uiで取得できます。</small>
                     </div>
                 </aside>
             </div>

@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react';
-import { categories, pieces, type Piece } from './catalog';
+import { useEffect, useRef, useState } from 'react';
+import type { Piece, SearchResult } from '../shared/types';
+import { api } from './api';
 import { Detail } from './Detail';
 import { Icon } from './Icon';
 import { Modal } from './Modal';
@@ -12,32 +13,38 @@ export function App() {
     const [selected, setSelected] = useState<Piece | null>(null);
     const [showGuide, setShowGuide] = useState(false);
     const searchRef = useRef<HTMLInputElement>(null);
-    const terms = query.toLocaleLowerCase('ja').trim().split(/\s+/).filter(Boolean);
-    const filtered = pieces
-        .filter((piece) => {
-            const text = [
-                piece.id,
-                piece.title,
-                piece.name,
-                piece.category,
-                ...piece.tags,
-                piece.description,
-            ]
-                .join(' ')
-                .toLocaleLowerCase('ja');
-            return (
-                terms.every((term) => text.includes(term)) &&
-                (category === 'すべて' || piece.category === category) &&
-                (kind === 'all' || piece.kind === kind)
-            );
-        })
-        .sort((a, b) =>
-            sort === 'name'
-                ? a.title.localeCompare(b.title, 'ja')
-                : sort === 'reverse'
-                  ? b.id.localeCompare(a.id)
-                  : a.id.localeCompare(b.id),
-        );
+    const [result, setResult] = useState<SearchResult | null>(null);
+    const [offset, setOffset] = useState(0);
+    const [revision, setRevision] = useState(0);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    useEffect(() => {
+        setOffset(0);
+    }, [query, category, kind, sort]);
+    useEffect(() => {
+        const controller = new AbortController();
+        setLoading(true);
+        setError('');
+        const timer = setTimeout(() => {
+            api<SearchResult>(
+                `/api/ui?${new URLSearchParams({ query, category, kind, sort, offset: String(offset), limit: '36' })}`,
+                controller.signal,
+            )
+                .then(setResult)
+                .catch((error) => {
+                    if (!controller.signal.aborted) setError(error.message);
+                })
+                .finally(() => {
+                    if (!controller.signal.aborted) setLoading(false);
+                });
+        }, 150);
+        return () => {
+            controller.abort();
+            clearTimeout(timer);
+        };
+    }, [query, category, kind, sort, offset, revision]);
+    const filtered = result?.items ?? [];
+    const categories = result?.categories ?? [];
     const resetFilters = () => {
         setQuery('');
         setCategory('すべて');
@@ -104,8 +111,8 @@ export function App() {
                                 {item.label}
                                 <span>
                                     {item.id === 'all'
-                                        ? pieces.length
-                                        : pieces.filter((piece) => piece.kind === item.id).length}
+                                        ? (result?.stats.total ?? 0)
+                                        : (result?.stats[item.id as 'component' | 'screen'] ?? 0)}
                                 </span>
                             </button>
                         ))}
@@ -160,8 +167,8 @@ export function App() {
                 </div>
                 <div className="results-line">
                     <p role="status">
-                        <strong>{filtered.length}</strong> 件のUI
-                        {hasFilters && <span> / 全 {pieces.length} 件</span>}
+                        <strong>{result?.total ?? 0}</strong> 件のUI
+                        {hasFilters && <span> / 全 {result?.stats.total ?? 0} 件</span>}
                     </p>
                     {hasFilters ? (
                         <button className="text-button" onClick={resetFilters}>
@@ -169,10 +176,29 @@ export function App() {
                             <Icon name="close" size={12} />
                         </button>
                     ) : (
-                        <span className="sample-label">サンプルコレクション</span>
+                        <button
+                            className="text-button"
+                            onClick={() => setRevision((value) => value + 1)}
+                        >
+                            更新
+                        </button>
                     )}
                 </div>
-                {filtered.length ? (
+                {loading ? (
+                    <p role="status" className="empty-state">
+                        読み込んでいます…
+                    </p>
+                ) : error ? (
+                    <div className="empty-state" role="alert">
+                        <p>{error}</p>
+                        <button
+                            className="secondary-button"
+                            onClick={() => setRevision((value) => value + 1)}
+                        >
+                            再読み込み
+                        </button>
+                    </div>
+                ) : filtered.length ? (
                     <div className="collection-grid">
                         {filtered.map((piece) => (
                             <article className="piece-card" key={piece.id}>
@@ -183,7 +209,7 @@ export function App() {
                                 >
                                     <div className="thumbnail" style={{ background: piece.color }}>
                                         <img
-                                            src={`/thumbnails/${piece.id}.png`}
+                                            src={`/api/ui/${piece.id}/thumbnail`}
                                             alt=""
                                             width="800"
                                             height="600"
@@ -205,7 +231,7 @@ export function App() {
                                             <span className="piece-brand">
                                                 {piece.name.split(' / ')[0]}
                                             </span>
-                                            <code>{piece.id}</code>
+                                            <code title={piece.id}>{piece.id.slice(0, 11)}</code>
                                         </div>
                                         <h2>{piece.title}</h2>
                                         <div className="piece-tags">
@@ -221,10 +247,37 @@ export function App() {
                 ) : (
                     <div className="empty-state">
                         <Icon name="search" size={30} />
-                        <h2>一致するUIがありません</h2>
-                        <p>別のキーワードで探すか、絞り込みを解除してください。</p>
+                        <h2>
+                            {hasFilters ? '一致するUIがありません' : '登録済みのUIがありません'}
+                        </h2>
+                        <p>
+                            {hasFilters
+                                ? '別のキーワードで探すか、絞り込みを解除してください。'
+                                : '「UIの追加方法」から登録の手順を確認できます。'}
+                        </p>
                         <button className="secondary-button" onClick={resetFilters}>
                             すべてのUIを見る
+                        </button>
+                    </div>
+                )}
+                {!loading && !error && result && result.total > 36 && (
+                    <div className="pagination" aria-label="ページ切り替え">
+                        <button
+                            className="secondary-button"
+                            disabled={offset === 0}
+                            onClick={() => setOffset(Math.max(0, offset - 36))}
+                        >
+                            前へ
+                        </button>
+                        <span>
+                            {offset + 1}〜{offset + filtered.length} / {result.total}
+                        </span>
+                        <button
+                            className="secondary-button"
+                            disabled={offset + 36 >= result.total}
+                            onClick={() => setOffset(offset + 36)}
+                        >
+                            次へ
                         </button>
                     </div>
                 )}
@@ -281,7 +334,7 @@ export function App() {
                         </p>
                     </div>
                     <p className="mock-notice">
-                        現在は6件のサンプルで操作を試すモックです。自動収集・登録、SQLiteへの保存、MCP接続は未実装です。
+                        登録後は「更新」で一覧に反映します。別プロジェクトからはMCPで検索・取得できるため、この画面を起動しておく必要はありません。
                     </p>
                     <button
                         className="primary-button guide-done"

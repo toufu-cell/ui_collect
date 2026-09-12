@@ -3,16 +3,28 @@
     "private": true,
     "version": "0.1.0",
     "type": "module",
+    "engines": {
+        "node": ">=24.14.0"
+    },
     "scripts": {
-        "dev": "vite --host 127.0.0.1",
+        "dev": "node server/web.ts --dev",
         "build": "tsc --noEmit && vite build",
-        "preview": "vite preview --host 127.0.0.1"
+        "preview": "node server/web.ts",
+        "start": "node server/web.ts",
+        "collection": "node server/cli.ts",
+        "mcp": "node server/mcp.ts",
+        "test": "node --test tests/*.test.ts"
     },
     "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.30.0",
+        "esbuild": "~0.28.2",
+        "playwright": "~1.63.0",
         "react": "^19.3.0",
-        "react-dom": "^19.3.0"
+        "react-dom": "^19.3.0",
+        "zod": "^4.6.2"
     },
     "devDependencies": {
+        "@types/node": "^24.0.0",
         "@types/react": "^19.0.0",
         "@types/react-dom": "^19.0.0",
         "@vitejs/plugin-react": "^6.1.1",

@@ -1,0 +1,21 @@
+{
+    "schemaVersion": 1,
+    "title": "プロジェクトのタブ切り替え",
+    "name": "Tabs / 公開UIの再実装",
+    "kind": "component",
+    "category": "ナビゲーション",
+    "tags": ["タブ", "ミニマル", "キーボード"],
+    "description": "タブ一覧と内容パネルを組み合わせた部品です。",
+    "note": "淡い背景のタブと、細い枠線で囲んだ内容パネル。文章と実装コードは独自のサンプルです。",
+    "interaction": "クリック、左右矢印、Home、Endでタブを選択できます。",
+    "color": "#f7f8fa",
+    "entry": "Tabs.tsx",
+    "files": ["Tabs.tsx", "tabs.css", "reference.png"],
+    "dependencies": { "react": "19.3.0", "react-dom": "19.3.0" },
+    "source": {
+        "type": "url",
+        "url": "https://ui.shadcn.com/docs/components/base/tabs",
+        "target": "最初のOverview / Analytics / Reports / Settingsのタブと内容パネル。2026-09-13に撮影。",
+        "reference": "reference.png"
+    }
+}

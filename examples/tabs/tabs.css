@@ -1,0 +1,58 @@
+.fs-tabs {
+    width: min(400px, calc(100% - 32px));
+    margin: 48px auto;
+    font:
+        14px/1.5 system-ui,
+        sans-serif;
+    color: #171717;
+}
+.fs-tabs * {
+    box-sizing: border-box;
+}
+.fs-tabs-list {
+    display: inline-flex;
+    gap: 2px;
+    max-width: 100%;
+    padding: 3px;
+    border-radius: 9px;
+    background: #f4f4f4;
+}
+.fs-tabs-list button {
+    border: 0;
+    border-radius: 7px;
+    padding: 4px 10px;
+    background: transparent;
+    color: #555;
+    font: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.fs-tabs-list button[aria-selected='true'] {
+    color: #171717;
+    background: white;
+    box-shadow: 0 1px 3px #0002;
+}
+.fs-tabs :focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 3px;
+}
+.fs-tabs-panel {
+    margin-top: 8px;
+    padding: 16px;
+    border: 1px solid #e3e3e3;
+    border-radius: 14px;
+    background: white;
+}
+.fs-tabs-panel h2 {
+    margin: 0;
+    font:
+        600 16px/1.5 system-ui,
+        sans-serif;
+}
+.fs-tabs-panel p {
+    color: #737373;
+    margin: 4px 0 0;
+}
+.fs-tabs-panel p:last-child {
+    margin-top: 16px;
+}
