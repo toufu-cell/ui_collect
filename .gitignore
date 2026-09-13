@@ -13,4 +13,5 @@ coverage/
 .playwright-cli/
 artifacts/
 collection-work/
+docs/collected-ui.md
 .formshelf/
